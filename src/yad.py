@@ -2,14 +2,13 @@
 
 import time
 import urllib2
-import re
-import os
+import os,sys
 from threading import Thread,Semaphore
 
 '''
+TODO
 Always pause and resume the downloads
 proxy support
-multiple connections
 '''
 
 class Download:
@@ -27,21 +26,32 @@ class Download:
         self.working=True # for threads to work
         self.thread_objs=[] # for holding thread objects
         self.download_done={} # for holding downloaded bytes of individual threads 
+        self.resume_support=None # if server supports part downloads 
 
     def getInfo(self,url):
         request = urllib2.Request(url,None,self.headers) # create the request object
-        data = urllib2.urlopen(request)
+        data = urllib2.urlopen(request) # make a request
         if self.debug:
             print data.info()
         return data.info() # return info about request
 
-    def checkResumeSupport(self):
-        pass # TODO
+    def checkResumeSupport(self,info):
+        if info.get('Accept-Ranges',None):
+            self.resume_support=True # set resume support
+        else:
+            print "Server Does not support multiple downloads, using just 1 Thread"
+            self.resume_support=False # set resume support
+            self.threads=1 # set number of threads to one
+            del(self.semaphore) # delete old semaphore object
+            self.semaphore = Semaphore(1) # set new semaphore object with value =1
 
     def download(self,url,filename=None):
         if not filename:
             filename = url.split("/")[-1] # if filename is not set we set a filename
-        length = self.getInfo(url).get('Content-length',None) # get the length of file to be downloaded
+        serverInfo = self.getInfo(url) # get info about the server
+        self.checkResumeSupport(serverInfo) # check if resume is supported
+        #print serverInfo #CHECK
+        length = serverInfo.get('Content-length',None) # get the length of file to be downloaded
         if length:
             size = int(length)/self.threads # get size of each part
             start=0
@@ -52,22 +62,22 @@ class Download:
                        start+size, # size of download
                        self,
                        i) # thread number
-                start+=size # set start from next thread
+                start+=size # set start for next thread
                 start+=1 # increment because we already downloaded the previous block 
                 self.thread_objs.append(thr) # add to the list of threads
                 thr.start() # start the thread
             info = DownloadInfo(self) # DownloadInfo obj for displaying info about current download
             info.start() # start the thread
-            print "Started %d threads" %(self.threads,)
+            print "Started %d thread(s)" %(self.threads,)
             for i in xrange(0,self.threads):
                 self.semaphore.acquire() # acquire semaphores self.threads times to make sure all threads are done downloading
                 # TODO - find a better way for above, for any number of threads
             self.working=False # stop the DownloadInfo thread
-            print "\nDownload Finished at %s\nJoining Part File..." %(time.asctime(),)
+            print "\nDownload Finished at %s\nJoining Part Files..." %(time.asctime(),)
             stream = open(filename,'wb') # open the main file
             for i in xrange(0,self.threads):
                 file_stream=open(filename+"-part-"+str(i),'rb') # open the part file
-                data = file_stream.read() # read data
+                data = file_stream.read() # read data from part file
                 while(data):
                     stream.write(data) # write data to the main file
                     data = file_stream.read() # read data from part file
@@ -77,7 +87,7 @@ class Download:
                 os.remove(filename+"-part-"+str(i)) # remove the part file
             print "Part Files Combined"
         else:
-            print "Sorry cannot proceed download...."
+            print "Sorry cannot proceed, download lenght zero\nPlease check your link"
 
 
 class DownloadThread(Thread):
@@ -91,8 +101,7 @@ class DownloadThread(Thread):
         self.filename=filename # set the filename
         self.start_byte=start_byte # set the start byte for download
         self.end_byte=end_byte # set the end byte for download
-        self.done_byte=0 # 
-        self.thread_num=num
+        self.thread_num=num # set thread number
         self.options.download_done[num]=0 # for finding number of blocks downloaded by each thread
 
     def _download(self):
@@ -102,7 +111,7 @@ class DownloadThread(Thread):
         stream = open(self.filename+"-part-"+str(self.thread_num),'wb') # naming the file as part <number>
         while self.options.working: # if download is not cancled
             before=time.time() # time when we started to download the current block
-            data_block = data.read(self.options.block_size) # download the data of block_size
+            data_block = data.read(self.options.block_size) # download the data of size block_size
             after = time.time() # time when we finished downloading the block
             data_block_len=len(data_block) # length of the downloaded data
             if data_block_len==0:
@@ -128,26 +137,28 @@ class DownloadThread(Thread):
                 print "Error Occurred in Thread-%d retrying..." %(self.thread_num+1,)
 
 
-
 class DownloadInfo(Thread):
-    def __init__(self,download_obj):
+    def __init__(self,download_obj,interval=2):
         Thread.__init__(self) # call Thread's __init__ method
         self.download_obj = download_obj # the download object
+        self.interval=interval # number of seconds to sleep after each update
 
     def run(self):
+        # below bytes reffer to KiB, that is block size
+        # TODO change this to block size from KiB
         print "Download started at %s" %(time.asctime()) # print the start time
-        start_time=time.time()
-        prev_downloaded_bytes=0
+        start_time=time.time() # set start_time
+        prev_downloaded_bytes=0 # set previous downloaded bytes
         while self.download_obj.working: # check if everything still working
-            time.sleep(2) # sleep for 2 seconds
-            downloaded_bytes=0
+            time.sleep(self.interval) # sleep for self.interval seconds
+            downloaded_bytes=0 # reset number of bytes downloaded during last sleep
             for i in self.download_obj.download_done.keys():
-                downloaded_bytes += self.download_obj.download_done[i]
-            cur_speed = (downloaded_bytes - prev_downloaded_bytes)/2
-            cur_time = time.time() - start_time
-            avg_speed = downloaded_bytes/cur_time
+                downloaded_bytes += self.download_obj.download_done[i] # get total blocks from all threads
+            cur_speed = (downloaded_bytes - prev_downloaded_bytes)/self.interval # get current speed
+            cur_time = time.time() - start_time # get total time difference
+            avg_speed = downloaded_bytes/cur_time # average speed
             print "\rcurrent speed -> %s KiB/sec Avg speed -> %s KiB/sec" %(cur_speed,int(avg_speed))
-            prev_downloaded_bytes=downloaded_bytes
+            prev_downloaded_bytes=downloaded_bytes # set current downloaded bytes as previous for next cycle
         cur_time= time.time() - start_time
         avg_speed=downloaded_bytes/cur_time
         print "Download finished in %s sec with avg speed of %s KiB/sec" %(int(cur_time),int(avg_speed))
@@ -155,4 +166,9 @@ class DownloadInfo(Thread):
 
 if __name__=="__main__":
     d = Download()
-    d.download("http://kernel.org/pub/linux/kernel/v2.6/linux-2.6.30.4.tar.bz2")
+    #d.download("http://kernel.org/pub/linux/kernel/v2.6/linux-2.6.30.4.tar.bz2")
+    #d.download("http://localhost/stuff/ActivePerl-5.10.0.1005-MSWin32-x86-290470.msi")
+    if len(sys.argv) < 2:
+        print "usage :-\n\t./yad.py <url to download>"
+    else:
+        d.download(sys.argv[1])
