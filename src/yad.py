@@ -171,7 +171,10 @@ class DownloadInfo(Thread):
             time.sleep(self.interval) # sleep for self.interval seconds
             downloaded_bytes=0 # reset number of bytes downloaded during last sleep
             for i in self.download_obj.download_done.keys():
-                downloaded_bytes += self.download_obj.download_done[i] # get total blocks from all threads
+                try: # if one part is already done if we access that we will get an error
+                    downloaded_bytes += self.download_obj.download_done[i] # get total blocks from all threads
+                except: # on error do nothing just continue
+                    pass
             cur_speed = (downloaded_bytes - prev_downloaded_bytes)/self.interval # get current speed
             cur_time = time.time() - start_time # get total time difference
             avg_speed = downloaded_bytes/cur_time # average speed
@@ -183,8 +186,38 @@ class DownloadInfo(Thread):
 
 
 if __name__=="__main__":
-    d = Download()
-    if len(sys.argv) < 2:
-        print "usage :-\n\t./yad.py <url to download>"
+    usage = "usage :-\n\t./yad.py <url to download> [<filename>]"
+    d = Download() # create the download object
+    if len(sys.argv) < 2: # check if we have all arguments or not
+        print usage
     else:
-        d.download(sys.argv[1])
+        do_download=0 # clear initialy for no downloads
+        if len(sys.argv) ==3:
+            filename = sys.argv[2]
+        else:
+            filename = sys.argv[1].split("/")[-1] # generate the file name from url
+        main_file=None # clear initially
+        part_file=None # clear initially
+        try:
+            main_file = os.stat(filename) # check for main file
+            part_file = os.stat(filename+"-part-0") # check for part file
+        except:
+            pass
+
+        if main_file and part_file: # if main file and part file exists
+            print "previous download found will try to continue/resume it"
+            do_download=1 # set as we need to download
+        elif main_file: # if only the main file exists
+            user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite[y/n] ") # ask user if he wants to overwrite
+            while user_action != "y" and user_action != "n" and user_action != "Y" and user_action != "N": # ask until user answers y or n
+                user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite[y/n] ") # ask user if he wants to overwrite
+            if user_action == "y": # overwrite the file
+                do_download=1 # set to proceed download, will overwrite automatically
+            else:
+                print "\n\nDownload cancled\nplease select other filename for download\n"+usage
+                sys.exit(1) # exit if not overwrite
+        else:
+            do_download=1 # if main file and resume file do not exists, set as we need to download
+        
+        if do_download:
+            d.download(sys.argv[1],filename) # download the file
