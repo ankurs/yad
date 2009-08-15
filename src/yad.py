@@ -126,7 +126,11 @@ class DownloadThread(Thread):
             print "Thread %d bytes=%d-%d" %(self.thread_num,self.start_byte,self.end_byte)
         request = urllib2.Request(self.url,None,self.options.headers) # making the request
         data = urllib2.urlopen(request)
-        stream = open(self.filename+"-part-"+str(self.thread_num),'ab') # naming the file as part <number>
+        if self.options.resume_support: # check if resume supported
+            file_mode="ab" # if supported append the file
+        else:
+            file_mode="wb" # if not supported clear the file
+        stream = open(self.filename+"-part-"+str(self.thread_num),file_mode) # naming the file as part <number>
         while self.options.working: # if download is not cancled
             before=time.time() # time when we started to download the current block
             data_block = data.read(self.options.block_size) # download the data of size block_size
@@ -202,14 +206,14 @@ if __name__=="__main__":
             main_file = os.stat(filename) # check for main file
             part_file = os.stat(filename+"-part-0") # check for part file
         except:
-            pass
+            pass # do nothing 
 
         if main_file and part_file: # if main file and part file exists
             print "previous download found will try to continue/resume it"
             do_download=1 # set as we need to download
         elif main_file: # if only the main file exists
             user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite[y/n] ") # ask user if he wants to overwrite
-            while user_action != "y" and user_action != "n" and user_action != "Y" and user_action != "N": # ask until user answers y or n
+            while user_action != "y" and user_action != "n" and user_action != "Y" and user_action != "N": # ask until user answers [y/Y/n/N]
                 user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite[y/n] ") # ask user if he wants to overwrite
             if user_action == "y": # overwrite the file
                 do_download=1 # set to proceed download, will overwrite automatically
