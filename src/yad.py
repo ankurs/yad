@@ -7,12 +7,13 @@ from threading import Thread,Semaphore
 
 '''
 TODO
-Always pause and resume the downloads
+Always pause and resume the downloads -- DONE
 proxy support
+user options
 '''
 
 class Download:
-    def __init__(self,threads=4):
+    def __init__(self,threads=10):
         self.headers = {	
     	    'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.1) Gecko/2008070208 Firefox/3.0.1',
     	    'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
@@ -76,6 +77,7 @@ class Download:
     def download(self,url,filename=None):
         if not filename:
             filename = url.split("/")[-1] # if filename is not set we set a filename
+        print "getting server info..."
         serverInfo = self.getInfo(url) # get info about the server
         self.checkResumeSupport(serverInfo) # check if resume is supported
         #print serverInfo #CHECK
@@ -83,7 +85,7 @@ class Download:
         if length:
             self.file_length = int(length) # set the file length
             size = int(length)/self.threads # get size of each part
-            self.part_length = size
+            self.part_length = size # set the size of part file
             self.createThreads(url,filename,size) # create thread objects
             info = DownloadInfo(self) # DownloadInfo obj for displaying status info about current download
             info.start() # start the status display thread
@@ -173,7 +175,7 @@ class DownloadInfo(Thread):
         self.interval=interval # number of seconds to sleep after each update
 
     def formatTime(self,seconds):
-        ' convert time from seconds to string '
+        ' convert time from seconds to string of hr, min and sec'
         seconds = int(seconds)
         if seconds <60:
             return "%2d sec" %(seconds,)
@@ -194,11 +196,11 @@ class DownloadInfo(Thread):
         print "Download started at %s" %(time.asctime()) # print the start time
         start_time=time.time() # set start_time
         prev_downloaded_bytes=0 # set previous downloaded bytes
+        time.sleep(2) # wait for download to start, then display the info
         while self.download_obj.working: # check if everything still working
-            time.sleep(self.interval) # sleep for self.interval seconds
             downloaded_bytes=0 # reset number of bytes downloaded during last sleep
             for i in self.download_obj.download_done.keys():
-                try: # if one part is already done if we access that we will get an error
+                try: # we will get erron on access of download info of a already done file ( if resume)
                     downloaded_bytes += self.download_obj.download_done[i] # get total blocks from all threads
                 except: # on error do nothing just continue
                     pass
@@ -213,6 +215,7 @@ class DownloadInfo(Thread):
             et = self.formatTime(estimated_time) # get the string representation
             print "\rcur-> %s KiB/sec, avg -> %s KiB/sec [%d%%] ET %s" %(cur_speed,int(avg_speed),percent,et)
             prev_downloaded_bytes=downloaded_bytes # set current downloaded bytes as previous for next cycle
+            time.sleep(self.interval) # sleep for self.interval seconds
         cur_time= time.time() - start_time
         avg_speed=downloaded_bytes/cur_time
         print "Download finished in %s  with avg speed of %s KiB/sec" %(self.formatTime(int(cur_time)),int(avg_speed))
@@ -228,12 +231,13 @@ if __name__=="__main__":
         if len(sys.argv) ==3:
             filename = sys.argv[2] # set the file name as specified in argument
         else:
-            filename = sys.argv[1].split("/")[-1] # generate the file name from url
+            filename = sys.argv[1].split("/")[-1].split('?')[0] # generate the file name from url
         main_file=None # clear initially
         part_file=None # clear initially
         try:
             main_file = os.stat(filename) # check for main file
             part_file = os.stat(filename+"-part-0") # check for part file
+            #TODO check all part files (CHECK is it required)
         except:
             pass # do nothing 
 
@@ -253,4 +257,5 @@ if __name__=="__main__":
             do_download=1 # if main file and resume file do not exists, set as we need to download
         
         if do_download:
+            print "Downloading "+filename+" from "+sys.argv[1]
             d.download(sys.argv[1],filename) # download the file
