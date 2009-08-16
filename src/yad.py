@@ -12,7 +12,7 @@ proxy support
 '''
 
 class Download:
-    def __init__(self):
+    def __init__(self,threads=4):
         self.headers = {	
     	    'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.1) Gecko/2008070208 Firefox/3.0.1',
     	    'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
@@ -20,13 +20,15 @@ class Download:
 	        'Accept-Language': 'en-us,en;q=0.5',
         } # connection headers 
         self.block_size=1024 # default block size
-        self.threads = 4 # default number of threads
+        self.threads = threads # total number of threads to use
         self.semaphore = Semaphore(self.threads) # counting Semaphore with value equal to number of threads
         self.debug=False # if debug run
         self.working=True # for threads to work
         self.thread_objs=[] # for holding thread objects
         self.download_done={} # for holding downloaded blocks of individual threads 
         self.resume_support=None # if server supports part downloads 
+        self.file_length=0 # total length of file
+        self.part_length=0 # length of each part file
 
     def getInfo(self,url):
         request = urllib2.Request(url,None,self.headers) # create the request object
@@ -45,9 +47,9 @@ class Download:
             del(self.semaphore) # delete old semaphore object
             self.semaphore = Semaphore(1) # set new semaphore object with value =1
 
-    def createThreads(self,url,filename,size,resume=0):
+    def createThreads(self,url,filename,size):
         '''
-            creates normal download threads if not  resume, creates resume threads if resume is set
+            creates normal download threads if not resume, creates resume threads if resume is set
         '''
         #TODO - add support for resume if different number of threads are used in initial and current download
         start=0
@@ -79,7 +81,9 @@ class Download:
         #print serverInfo #CHECK
         length = serverInfo.get('Content-length',None) # get the length of file to be downloaded
         if length:
+            self.file_length = int(length) # set the file length
             size = int(length)/self.threads # get size of each part
+            self.part_length = size
             self.createThreads(url,filename,size) # create thread objects
             info = DownloadInfo(self) # DownloadInfo obj for displaying status info about current download
             info.start() # start the status display thread
@@ -97,13 +101,14 @@ class Download:
                     stream.write(data) # write data to the main file
                     data = file_stream.read() # read data from part file
                 file_stream.close() # close the part file
-                if self.debug:
-                    print "combined file -> %d" %(i+1,)
+                print "combined file -> %s" %(filename+"-part-"+str(i),)
             for i in xrange(0,self.threads): # remove part file after all other files have been added to the main file
                 os.remove(filename+"-part-"+str(i)) # remove the part file
-            print "Part Files Combined"
+            print "Part Files Combined\nDONE"
         else:
             print "Sorry cannot proceed, download lenght zero\nPlease check your link"
+            if self.debug:
+                print serverInfo
 
 
 class DownloadThread(Thread):
@@ -127,10 +132,12 @@ class DownloadThread(Thread):
         request = urllib2.Request(self.url,None,self.options.headers) # making the request
         data = urllib2.urlopen(request)
         if self.options.resume_support: # check if resume supported
-            file_mode="ab" # if supported append the file
+            file_mode="ab" # if resume supported append the file
         else:
-            file_mode="wb" # if not supported clear the file
+            file_mode="wb" # if resume not supported clear the file
         stream = open(self.filename+"-part-"+str(self.thread_num),file_mode) # naming the file as part <number>
+        self.options.download_done[self.thread_num] = 0 # self.options.part_length - (self.end_byte - self.start_byte) CHECK
+        # set the data downloaded by this thread to filesize (above) CHECK TODO
         while self.options.working: # if download is not cancled
             before=time.time() # time when we started to download the current block
             data_block = data.read(self.options.block_size) # download the data of size block_size
@@ -162,8 +169,24 @@ class DownloadThread(Thread):
 class DownloadInfo(Thread):
     def __init__(self,download_obj,interval=2):
         Thread.__init__(self) # call Thread's __init__ method
-        self.download_obj = download_obj # the download object
+        self.download_obj = download_obj # Download class object to read info from
         self.interval=interval # number of seconds to sleep after each update
+
+    def formatTime(self,seconds):
+        ' convert time from seconds to string '
+        seconds = int(seconds)
+        if seconds <60:
+            return "%2d sec" %(seconds,)
+        elif seconds <3600:
+            min = seconds/60
+            sec = seconds%60
+            return "%2d:%2d min" %(min,sec)
+        else:
+            hr = seconds/3600
+            seconds = seconds%3600
+            min = seconds/60
+            sec = seconds%60
+            return "%d:%2d:%2d hr" %(hr,min,sec)
 
     def run(self):
         # below bytes reffer to KiB, that is block size
@@ -182,11 +205,17 @@ class DownloadInfo(Thread):
             cur_speed = (downloaded_bytes - prev_downloaded_bytes)/self.interval # get current speed
             cur_time = time.time() - start_time # get total time difference
             avg_speed = downloaded_bytes/cur_time # average speed
-            print "\rcurrent speed -> %s KiB/sec Avg speed -> %s KiB/sec" %(cur_speed,int(avg_speed))
+            percent = (downloaded_bytes*100*self.download_obj.block_size)/self.download_obj.file_length # calculate the percentage done
+            if avg_speed:
+                estimated_time = ((self.download_obj.file_length/self.download_obj.block_size) - downloaded_bytes)/avg_speed # calculate estimated time
+            else:
+                estimated_time = 0
+            et = self.formatTime(estimated_time) # get the string representation
+            print "\rcur-> %s KiB/sec, avg -> %s KiB/sec [%d%%] ET %s" %(cur_speed,int(avg_speed),percent,et)
             prev_downloaded_bytes=downloaded_bytes # set current downloaded bytes as previous for next cycle
         cur_time= time.time() - start_time
         avg_speed=downloaded_bytes/cur_time
-        print "Download finished in %s sec with avg speed of %s KiB/sec" %(int(cur_time),int(avg_speed))
+        print "Download finished in %s  with avg speed of %s KiB/sec" %(self.formatTime(int(cur_time)),int(avg_speed))
 
 
 if __name__=="__main__":
@@ -197,7 +226,7 @@ if __name__=="__main__":
     else:
         do_download=0 # clear initialy for no downloads
         if len(sys.argv) ==3:
-            filename = sys.argv[2]
+            filename = sys.argv[2] # set the file name as specified in argument
         else:
             filename = sys.argv[1].split("/")[-1] # generate the file name from url
         main_file=None # clear initially
@@ -212,9 +241,9 @@ if __name__=="__main__":
             print "previous download found will try to continue/resume it"
             do_download=1 # set as we need to download
         elif main_file: # if only the main file exists
-            user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite[y/n] ") # ask user if he wants to overwrite
+            user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite [y/n]: ") # ask user if he wants to overwrite
             while user_action != "y" and user_action != "n" and user_action != "Y" and user_action != "N": # ask until user answers [y/Y/n/N]
-                user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite[y/n] ") # ask user if he wants to overwrite
+                user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite [y/n]: ") # ask user if he wants to overwrite
             if user_action == "y": # overwrite the file
                 do_download=1 # set to proceed download, will overwrite automatically
             else:
