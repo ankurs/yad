@@ -3,17 +3,19 @@
 import time
 import urllib2
 import os,sys
+import getopt # command line argument parser
 from threading import Thread,Semaphore
 
 '''
 TODO
-Always pause and resume the downloads -- DONE
+Always pause and resume the downloads -- DONE (CHECK all cases)
 proxy support
 user options
+remove part file by adding single file seek (need of queue ?)
 '''
 
 class Download:
-    def __init__(self,threads=10):
+    def __init__(self,threads=4):
         self.headers = {	
     	    'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.1) Gecko/2008070208 Firefox/3.0.1',
     	    'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
@@ -30,6 +32,7 @@ class Download:
         self.resume_support=None # if server supports part downloads 
         self.file_length=0 # total length of file
         self.part_length=0 # length of each part file
+        self.datastore = DataStore(self) # CHECK remove this
 
     def getInfo(self,url):
         request = urllib2.Request(url,None,self.headers) # create the request object
@@ -43,7 +46,7 @@ class Download:
             self.resume_support=True # set resume support
         else:
             print "Server Does not support multiple downloads, using just 1 Thread"
-            self.resume_support=False # set resume support
+            self.resume_support=False # clear resume support
             self.threads=1 # set number of threads to one
             del(self.semaphore) # delete old semaphore object
             self.semaphore = Semaphore(1) # set new semaphore object with value =1
@@ -85,6 +88,11 @@ class Download:
         if length:
             self.file_length = int(length) # set the file length
             size = int(length)/self.threads # get size of each part
+            if int(size) <1024: # check minimum size
+                print "Error: size of each part file is smaller then 1 KiB\nPlease decrease the number of threads"
+                print usage
+                sys.exit(1)
+#            self.datastore.start() # start the datastore thread
             self.part_length = size # set the size of part file
             self.createThreads(url,filename,size) # create thread objects
             info = DownloadInfo(self) # DownloadInfo obj for displaying status info about current download
@@ -148,7 +156,9 @@ class DownloadThread(Thread):
             if data_block_len==0:
                 break # if length is 0 we stop the download
             stream.write(data_block) # write the data to file
+            self.options.datastore.list.append((data_block,self.start_byte)) # CHECK 
             self.options.download_done[self.thread_num]+=1 # increase the number of downloaded block by this thread
+            self.start_byte+=data_block_len # increase the start byte by downloaded data's length (if we restart this thread because of error)
             speed = data_block_len/((after-before)*1024) # to claculate speed
             if self.options.debug:
                 print u'\rThread-%d speed -> %d' %(self.thread_num+1,speed), # print speed of thread if debug enabled
@@ -167,6 +177,32 @@ class DownloadThread(Thread):
             except:
                 print "Error Occurred in Thread-%d retrying..." %(self.thread_num+1,)
 
+class DataStore(Thread): 
+    '''
+        used for storing data directly into the file, without using the part files
+        TODO -- finalize the working
+        CHECK - Do we need a thread for this?
+    '''
+    def __init__(self,options):
+        Thread.__init__(self) # call Thread's __init__ method
+        self.list=[]
+        self.options=options
+        self.file_obj = open("abc1.py","wb") # open the file in append binary mode
+
+    def store(self):
+        '''
+            stores the data at the mentioned position
+        '''
+        data,pos= self.list.pop()
+        self.file_obj.seek(int(pos))
+        self.file_obj.write(data)
+
+    def run(self):
+        while self.options.working:
+            time.sleep(1)
+            while len(self.list):
+                self.store()
+        self.file_obj.close()
 
 class DownloadInfo(Thread):
     def __init__(self,download_obj,interval=2):
@@ -197,6 +233,7 @@ class DownloadInfo(Thread):
         start_time=time.time() # set start_time
         prev_downloaded_bytes=0 # set previous downloaded bytes
         time.sleep(2) # wait for download to start, then display the info
+        downloaded_bytes=0
         while self.download_obj.working: # check if everything still working
             downloaded_bytes=0 # reset number of bytes downloaded during last sleep
             for i in self.download_obj.download_done.keys():
@@ -211,7 +248,7 @@ class DownloadInfo(Thread):
             if avg_speed:
                 estimated_time = ((self.download_obj.file_length/self.download_obj.block_size) - downloaded_bytes)/avg_speed # calculate estimated time
             else:
-                estimated_time = 0
+                estimated_time = 0 # to prevent divide by zero when avg_speed is zero
             et = self.formatTime(estimated_time) # get the string representation
             print "\rcur-> %s KiB/sec, avg -> %s KiB/sec [%d%%] ET %s" %(cur_speed,int(avg_speed),percent,et)
             prev_downloaded_bytes=downloaded_bytes # set current downloaded bytes as previous for next cycle
@@ -220,42 +257,63 @@ class DownloadInfo(Thread):
         avg_speed=downloaded_bytes/cur_time
         print "Download finished in %s  with avg speed of %s KiB/sec" %(self.formatTime(int(cur_time)),int(avg_speed))
 
+def main(url,filename,threads):
+    usage = "usage :-\n\t./yad.py [-f <filename>] [-t <number of threads>] <url to download>"
+    try:
+        threads = int(threads)
+    except:
+        print "Thread should be an integer"
+        print usage
+        sys.exit(2)
+    d = Download(threads) # creates the download object
+    do_download=0 # clear initialy for no downloads
+    main_file=None # clear initially
+    part_file=None # clear initially
+    try:
+        main_file = os.stat(filename) # check for main file
+        part_file = os.stat(filename+"-part-0") # check for part file
+        #TODO check all part files (CHECK is it required)
+    except:
+        pass # do nothing 
+
+    if main_file and part_file: # if main file and part file exists
+        print "previous download found will try to continue/resume it"
+        do_download=1 # set as we need to download
+    elif main_file: # if only the main file exists
+        user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite [y/n]: ") # ask user if he wants to overwrite
+        while user_action != "y" and user_action != "n" and user_action != "Y" and user_action != "N": # ask until user answers [y/Y/n/N]
+            user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite [y/n]: ") # ask user if he wants to overwrite
+        if user_action == "y": # overwrite the file
+            do_download=1 # set to proceed download, will overwrite automatically
+        else:
+            print "\n\nDownload cancled\nplease select other filename for download\n"+usage
+            sys.exit(1) # exit if not overwrite
+    else:
+        do_download=1 # if main file and resume file do not exists, set as we need to download
+    if do_download:
+        print "Downloading "+filename+" from "+url
+        d.download(url,filename) # download the file
 
 if __name__=="__main__":
-    usage = "usage :-\n\t./yad.py <url to download> [<filename>]"
-    d = Download() # create the download object
-    if len(sys.argv) < 2: # check if we have all arguments or not
+    usage = "usage :-\n\t./yad.py  [-f <filename>] [-t <number of threads>] <url to download>"
+    filename=None # initialize filename
+    threads=4 # initialize number of threads
+    try:
+        opts, args = getopt.getopt(sys.argv[1:],"f:t:") # parse the supplied arguments
+        print opts
+    except getopt.GetoptError, err: # catch the exception
+        print str(err) # print the error message
+        print usage # print usage
+        sys.exit(2)
+    for option, value in opts: # parse and set value of options
+        if option =="-f":
+            filename=value
+        elif option =="-t":
+            threads=value
+    if len(args) ==0: # if no url specified
+        print "Please enter a url"
         print usage
     else:
-        do_download=0 # clear initialy for no downloads
-        if len(sys.argv) ==3:
-            filename = sys.argv[2] # set the file name as specified in argument
-        else:
-            filename = sys.argv[1].split("/")[-1].split('?')[0] # generate the file name from url
-        main_file=None # clear initially
-        part_file=None # clear initially
-        try:
-            main_file = os.stat(filename) # check for main file
-            part_file = os.stat(filename+"-part-0") # check for part file
-            #TODO check all part files (CHECK is it required)
-        except:
-            pass # do nothing 
-
-        if main_file and part_file: # if main file and part file exists
-            print "previous download found will try to continue/resume it"
-            do_download=1 # set as we need to download
-        elif main_file: # if only the main file exists
-            user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite [y/n]: ") # ask user if he wants to overwrite
-            while user_action != "y" and user_action != "n" and user_action != "Y" and user_action != "N": # ask until user answers [y/Y/n/N]
-                user_action = raw_input("file ' "+filename+" ' already exists do you want to overwrite [y/n]: ") # ask user if he wants to overwrite
-            if user_action == "y": # overwrite the file
-                do_download=1 # set to proceed download, will overwrite automatically
-            else:
-                print "\n\nDownload cancled\nplease select other filename for download\n"+usage
-                sys.exit(1) # exit if not overwrite
-        else:
-            do_download=1 # if main file and resume file do not exists, set as we need to download
-        
-        if do_download:
-            print "Downloading "+filename+" from "+sys.argv[1]
-            d.download(sys.argv[1],filename) # download the file
+        if not filename: # if no filename set
+            filename = args[0].split("/")[-1].split('?')[0] # generate the file name from url
+        main(args[0],filename,threads) # call the main function
