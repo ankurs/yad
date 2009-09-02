@@ -2,7 +2,7 @@
 
 # Author: Ankur Shrivastava
 # mail : ankur [ at ] ankurs [ dot ] com
-# Licence : GPLv3
+# License : GPLv3
 
 import time
 import urllib2
@@ -62,17 +62,9 @@ class Download:
         #TODO - add support for resume if different number of threads are used in initial and current download
         start=0
         for i in xrange(0,self.threads):
-            try:
-                cur_size = os.stat(filename+"-part-"+str(i)).st_size # get size of the current file
-                cur_start = start+cur_size # set curret start equal to start plus the current size
-                print "resuming download of part-" +str(i)
-            except:
-                cur_start = start
-            if cur_start>(start+size): # if download of current part file is finished
-                continue # continue to next part
             thr = DownloadThread(url, # url of file
                            filename, # filename
-                           cur_start, # start of download
+                           start, # start of download
                            start+size, # size of download
                            self,
                            i) # thread number
@@ -96,7 +88,7 @@ class Download:
                 print "Error: size of each part file is smaller then 1 KiB\nPlease decrease the number of threads"
                 print usage
                 sys.exit(1)
-            self.datastore.filename=filename
+            self.datastore.filename=filename # set the file name
             self.datastore.start() # start the datastore thread
             self.part_length = size # set the size of part file
             self.createThreads(url,filename,size) # create thread objects
@@ -171,26 +163,26 @@ class DataStore(Thread):
     '''
     def __init__(self,options):
         Thread.__init__(self) # call Thread's __init__ method
-        self.list=[]
-        self.options=options
+        self.list=[] # list for holding dowlnoaded data
+        self.options=options # configuration options
         self.file_obj = None # file handler
-        self.filename=None
+        self.filename=None # file for the file
 
     def store(self):
         '''
             stores the data at the mentioned position
         '''
-        data,pos= self.list.pop()
-        self.file_obj.seek(int(pos))
-        self.file_obj.write(data)
+        data,pos= self.list.pop() # retrive the data and position
+        self.file_obj.seek(int(pos)) # move to position
+        self.file_obj.write(data) # write the data at position
 
     def run(self):
-        self.file_obj = open(self.filename,"wb")
-        while self.options.working:
-            time.sleep(1)
-            while len(self.list):
-                self.store()
-        self.file_obj.close()
+        self.file_obj = open(self.filename,"wb") # open file where data is to be stored
+        while self.options.working: # while download in progress
+            time.sleep(1) # sleep for 1 sec
+            while len(self.list): # while we have data in list
+                self.store() # store the data
+        self.file_obj.close() # close the file object
 
 class DownloadInfo(Thread):
     def __init__(self,download_obj,interval=2):
@@ -261,18 +253,20 @@ if __name__=="__main__":
     usage = "usage :-\n\t./yad.py  [-f <filename>] [-t <number of threads>] <url to download>"
     filename=None # initialize filename
     threads=4 # initialize number of threads
+    proxy = None # initialize proxy to None
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"f:t:") # parse the supplied arguments
-        print opts
+        opts, args = getopt.getopt(sys.argv[1:],"f:t:p:") # parse the supplied arguments
     except getopt.GetoptError, err: # catch the exception
         print str(err) # print the error message
         print usage # print usage
         sys.exit(2)
     for option, value in opts: # parse and set value of options
         if option =="-f":
-            filename=value
+            filename= value # set the filename
         elif option =="-t":
-            threads=value
+            threads= value # set number of threads
+        elif option == "-p":
+            proxy = value # set proxy
     if len(args) ==0: # if no url specified
         print "Please enter a url"
         print usage
