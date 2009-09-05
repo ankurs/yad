@@ -19,13 +19,16 @@ remove part file by adding single file seek
 '''
 
 class Download:
-    def __init__(self,threads=4):
+    def __init__(self,threads=4,proxy=None):
         self.headers = {	
     	    'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.1) Gecko/2008070208 Firefox/3.0.1',
     	    'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
         	'Accept': 'text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5',
 	        'Accept-Language': 'en-us,en;q=0.5',
         } # connection headers 
+        if proxy:
+            urllib2.install_opener(urllib2.build_opener(urllib2.ProxyHandler(proxy))) # set global proxy handler
+        urllib2.install_opener(urllib2.build_opener(urllib2.HTTPCookieProcessor())) # set global cookie processor
         self.block_size=1024 # default block size
         self.threads = threads # total number of threads to use
         self.semaphore = Semaphore(self.threads) # counting Semaphore with value equal to number of threads
@@ -235,27 +238,32 @@ class DownloadInfo(Thread):
             time.sleep(self.interval) # sleep for self.interval seconds
         cur_time= time.time() - start_time
         avg_speed=downloaded_bytes/cur_time
-        print "Download finished in %s  with avg speed of %s KiB/sec" %(self.formatTime(int(cur_time)),int(avg_speed))
+        print "Download finished in %d  with avg speed of %d KiB/sec" %(self.formatTime(int(cur_time)),int(avg_speed))
 
-def main(url,filename,threads):
-    usage = "usage :-\n\t./yad.py [-f <filename>] [-t <number of threads>] <url to download>"
+def main(url,filename,threads,proxy_arg):    
     try:
         threads = int(threads)
     except:
         print "Thread should be an integer"
         print usage
         sys.exit(2)
-    d = Download(threads) # creates the download object
+    proxy = None # set proxy to None
+    if proxy_arg: # if proxy is set
+        proxy_arg = proxy_arg.split("://") # split protocol and proxy
+        if len(proxy_arg)>1: # check number
+            proxy={proxy_arg[0] : proxy_arg[1]} # set the proxy
+    d = Download(threads,proxy) # creates the download object
     print "Downloading "+filename+" from "+url
     d.download(url,filename) # download the file
 
+usage = """usage :-\n\t./yad.py [-f <filename>] [-t <number of threads>] [-p <proxy>] [-pn] <url to download>\n\t-pn -> set proxy to be ntlmapps that is 127.0.0.1:5865"""
+
 if __name__=="__main__":
-    usage = "usage :-\n\t./yad.py  [-f <filename>] [-t <number of threads>] <url to download>"
     filename=None # initialize filename
     threads=4 # initialize number of threads
     proxy = None # initialize proxy to None
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"f:t:p:") # parse the supplied arguments
+        opts, args = getopt.getopt(sys.argv[1:],"f:t:p:pn") # parse the supplied arguments
     except getopt.GetoptError, err: # catch the exception
         print str(err) # print the error message
         print usage # print usage
@@ -267,10 +275,12 @@ if __name__=="__main__":
             threads= value # set number of threads
         elif option == "-p":
             proxy = value # set proxy
+        elif option == "-pn": 
+            proxy = "http://127.0.0.1:5865" # set proxy for ntlmapps
     if len(args) ==0: # if no url specified
         print "Please enter a url"
         print usage
     else:
         if not filename: # if no filename set
             filename = args[0].split("/")[-1].split('?')[0] # generate the file name from url
-        main(args[0],filename,threads) # call the main function
+        main(args[0],filename,threads,proxy) # call the main function
