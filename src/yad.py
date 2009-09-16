@@ -211,7 +211,7 @@ class DownloadInfo(Thread):
         self.interval=interval # number of seconds to sleep after each update
 
     def formatTime(self,seconds):
-        ' convert time from seconds to string of hr, min and sec'
+        ' convert time from seconds to string of hr, min and sec '
         seconds = int(seconds)
         if seconds <60:
             return "%2d sec" %(seconds,)
