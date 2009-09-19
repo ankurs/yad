@@ -238,7 +238,7 @@ class DownloadInfo(Thread):
             time.sleep(self.interval) # sleep for self.interval seconds
         cur_time= time.time() - start_time
         avg_speed=downloaded_bytes/cur_time
-        print "Download finished in %d  with avg speed of %d KiB/sec" %(self.formatTime(int(cur_time)),int(avg_speed))
+        print "Download finished in %s  with avg speed of %d KiB/sec" %(self.formatTime(int(cur_time)),int(avg_speed))
 
 def main(url,filename,threads,proxy_arg):    
     try:
