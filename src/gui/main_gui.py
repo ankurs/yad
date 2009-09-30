@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'main_gui.ui'
 #
-# Created: Sat Sep 19 19:23:43 2009
+# Created: Wed Sep 30 15:20:56 2009
 #      by: PyQt4 UI code generator 4.5.4
 #
 # WARNING! All changes made in this file will be lost!
@@ -12,12 +12,18 @@ from PyQt4 import QtCore, QtGui
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(615, 461)
+        MainWindow.resize(760, 519)
+        MainWindow.setAcceptDrops(False)
         self.centralWidget = QtGui.QWidget(MainWindow)
         self.centralWidget.setObjectName("centralWidget")
+        self.verticalLayout = QtGui.QVBoxLayout(self.centralWidget)
+        self.verticalLayout.setObjectName("verticalLayout")
+        self.downloadWidget = QtGui.QTreeWidget(self.centralWidget)
+        self.downloadWidget.setObjectName("downloadWidget")
+        self.verticalLayout.addWidget(self.downloadWidget)
         MainWindow.setCentralWidget(self.centralWidget)
         self.menuBar = QtGui.QMenuBar(MainWindow)
-        self.menuBar.setGeometry(QtCore.QRect(0, 0, 615, 26))
+        self.menuBar.setGeometry(QtCore.QRect(0, 0, 760, 26))
         self.menuBar.setDefaultUp(False)
         self.menuBar.setObjectName("menuBar")
         self.menuFIle = QtGui.QMenu(self.menuBar)
@@ -54,10 +60,15 @@ class Ui_MainWindow(object):
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(QtGui.QApplication.translate("MainWindow", "MainWindow", None, QtGui.QApplication.UnicodeUTF8))
-        self.menuFIle.setTitle(QtGui.QApplication.translate("MainWindow", "File", None, QtGui.QApplication.UnicodeUTF8))
-        self.menuTools.setTitle(QtGui.QApplication.translate("MainWindow", "Tools", None, QtGui.QApplication.UnicodeUTF8))
-        self.menuHelp.setTitle(QtGui.QApplication.translate("MainWindow", "Help", None, QtGui.QApplication.UnicodeUTF8))
+        MainWindow.setWindowTitle(QtGui.QApplication.translate("MainWindow", "YAD", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(0, QtGui.QApplication.translate("MainWindow", "Name", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(1, QtGui.QApplication.translate("MainWindow", "URL", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(2, QtGui.QApplication.translate("MainWindow", "Progress", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(3, QtGui.QApplication.translate("MainWindow", "ET", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(4, QtGui.QApplication.translate("MainWindow", "Size", None, QtGui.QApplication.UnicodeUTF8))
+        self.menuFIle.setTitle(QtGui.QApplication.translate("MainWindow", "&File", None, QtGui.QApplication.UnicodeUTF8))
+        self.menuTools.setTitle(QtGui.QApplication.translate("MainWindow", "&Tools", None, QtGui.QApplication.UnicodeUTF8))
+        self.menuHelp.setTitle(QtGui.QApplication.translate("MainWindow", "&Help", None, QtGui.QApplication.UnicodeUTF8))
         self.actionURL.setText(QtGui.QApplication.translate("MainWindow", "URL", None, QtGui.QApplication.UnicodeUTF8))
         self.actionURL.setShortcut(QtGui.QApplication.translate("MainWindow", "Ctrl+O", None, QtGui.QApplication.UnicodeUTF8))
         self.actionSettings.setText(QtGui.QApplication.translate("MainWindow", "Settings", None, QtGui.QApplication.UnicodeUTF8))
@@ -65,4 +76,5 @@ class Ui_MainWindow(object):
         self.actionAbout.setText(QtGui.QApplication.translate("MainWindow", "About", None, QtGui.QApplication.UnicodeUTF8))
         self.actionAbout.setShortcut(QtGui.QApplication.translate("MainWindow", "Ctrl+A", None, QtGui.QApplication.UnicodeUTF8))
         self.actionExit.setText(QtGui.QApplication.translate("MainWindow", "Exit", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionExit.setShortcut(QtGui.QApplication.translate("MainWindow", "Ctrl+Q", None, QtGui.QApplication.UnicodeUTF8))
 

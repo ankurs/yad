@@ -19,7 +19,11 @@ remove part file by adding single file seek
 '''
 
 class Download:
-    def __init__(self,threads=4,proxy=None):
+    def __init__(self,id,threads=4,proxy=None):
+        '''
+        constructor
+        id -> helps keep track of all the downloads
+        '''
         self.headers = {	
     	    'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.1) Gecko/2008070208 Firefox/3.0.1',
     	    'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
@@ -40,6 +44,7 @@ class Download:
         self.file_length=0 # total length of file
         self.part_length=0 # length of each part file
         self.datastore = DataStore(self) # CHECK remove this
+        self.ID = id
 
     def getInfo(self,url):
         request = urllib2.Request(url,None,self.headers) # create the request object
@@ -76,13 +81,15 @@ class Download:
             self.thread_objs.append(thr) # add to the list of threads
             thr.start() # start the thread
 
-    def download(self,url,filename=None):
+    def download(self,url,filename=None,folder=None):
         if not filename:
             filename = url.split("/")[-1] # if filename is not set we set a filename
         print "getting server info..."
         serverInfo = self.getInfo(url) # get info about the server
         self.checkResumeSupport(serverInfo) # check if resume is supported
         #print serverInfo #CHECK
+        if folder:
+            filename = folder + filename # prefix folder name to file name
         length = serverInfo.get('Content-length',None) # get the length of file to be downloaded
         if length:
             self.file_length = int(length) # set the file length
@@ -181,11 +188,12 @@ class DataStore(Thread):
 
     def run(self):
         self.file_obj = open(self.filename,"wb") # open file where data is to be stored
+        time_start = time.time()
         while self.options.working: # while download in progress
-            time.sleep(1) # sleep for 1 sec
             while len(self.list): # while we have data in list
                 self.store() # store the data
         self.file_obj.close() # close the file object
+        print time.time() - time_start
 
 class DownloadInfo(Thread):
     def __init__(self,download_obj,interval=2):
@@ -233,13 +241,15 @@ class DownloadInfo(Thread):
             else:
                 estimated_time = 0 # to prevent divide by zero when avg_speed is zero
             et = self.formatTime(estimated_time) # get the string representation
-            print "\rcur-> %s KiB/sec, avg -> %s KiB/sec [%d%%] ET %s" %(cur_speed,int(avg_speed),percent,et)
+            print "\rcur-> %s KiB/sec, avg -> %s KiB/sec [%d%%] ET %s" %(cur_speed,int(avg_speed),percent,et),
+            sys.stdout.flush() # to flush stdout
             prev_downloaded_bytes=downloaded_bytes # set current downloaded bytes as previous for next cycle
             time.sleep(self.interval) # sleep for self.interval seconds
         cur_time= time.time() - start_time
         avg_speed=downloaded_bytes/cur_time
         print "Download finished in %s  with avg speed of %d KiB/sec" %(self.formatTime(int(cur_time)),int(avg_speed))
 
+'''
 def main(url,filename,threads,proxy_arg):    
     try:
         threads = int(threads)
@@ -284,3 +294,5 @@ if __name__=="__main__":
         if not filename: # if no filename set
             filename = args[0].split("/")[-1].split('?')[0] # generate the file name from url
         main(args[0],filename,threads,proxy) # call the main function
+
+'''
