@@ -8,6 +8,27 @@ from PyQt4 import QtCore, QtGui
 from gui import main_gui, about_gui, new_download_gui
 import yad
 import sys
+from hashlib import sha1
+from time import time
+from threading import Thread
+
+Downloads = [] # stores all the download objects for reference
+
+
+class DownloadThread(Thread):
+    '''
+        handels the actual download
+    '''
+    def __init__(self,url,folder=None,threads=4):
+        Thread.__init__(self) # setup the thread
+        id = sha1(str(time())).hexdigest() # generate a hex digest based on current time
+        self.d = yad.Download(id,threads)
+        self.folder = folder
+        self.url = url
+
+    def run(self):
+        self.d.download(self.url,folder = self.folder)
+        
 
 class AboutDialog(about_gui.Ui_Dialog):
     '''
@@ -55,9 +76,12 @@ class NewDownload(new_download_gui.Ui_Dialog):
 
     def doDownload(self):
         print self.url.text()
+        global Downloads
         if self.url.text() and self.folderPath.text():
             d = yad.Download(self.threads.value())
-            d.download(str(self.url.text()),folder = str(self.folderPath.text()))
+            d = DownloadThread(str(self.url.text()), str(self.folderPath.text()), self.threads.value())
+            Downloads.append(d)
+            d.start()
             self.close()
 
 class YadUi(main_gui.Ui_MainWindow):
