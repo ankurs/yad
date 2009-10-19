@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'main_gui.ui'
 #
-# Created: Wed Oct  7 15:11:11 2009
+# Created: Sun Oct 18 15:37:43 2009
 #      by: PyQt4 UI code generator 4.5.4
 #
 # WARNING! All changes made in this file will be lost!
@@ -61,11 +61,13 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QtGui.QApplication.translate("MainWindow", "YAD", None, QtGui.QApplication.UnicodeUTF8))
-        self.downloadWidget.headerItem().setText(0, QtGui.QApplication.translate("MainWindow", "Name", None, QtGui.QApplication.UnicodeUTF8))
-        self.downloadWidget.headerItem().setText(1, QtGui.QApplication.translate("MainWindow", "URL", None, QtGui.QApplication.UnicodeUTF8))
-        self.downloadWidget.headerItem().setText(2, QtGui.QApplication.translate("MainWindow", "Progress", None, QtGui.QApplication.UnicodeUTF8))
-        self.downloadWidget.headerItem().setText(3, QtGui.QApplication.translate("MainWindow", "ET", None, QtGui.QApplication.UnicodeUTF8))
-        self.downloadWidget.headerItem().setText(4, QtGui.QApplication.translate("MainWindow", "Size", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(0, QtGui.QApplication.translate("MainWindow", "URL", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(1, QtGui.QApplication.translate("MainWindow", "Progress", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(2, QtGui.QApplication.translate("MainWindow", "Time Remaining", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(3, QtGui.QApplication.translate("MainWindow", "Cur Speed", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(4, QtGui.QApplication.translate("MainWindow", "Avg Speed", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(5, QtGui.QApplication.translate("MainWindow", "Path", None, QtGui.QApplication.UnicodeUTF8))
+        self.downloadWidget.headerItem().setText(6, QtGui.QApplication.translate("MainWindow", "Size", None, QtGui.QApplication.UnicodeUTF8))
         self.menuFIle.setTitle(QtGui.QApplication.translate("MainWindow", "&File", None, QtGui.QApplication.UnicodeUTF8))
         self.menuTools.setTitle(QtGui.QApplication.translate("MainWindow", "&Tools", None, QtGui.QApplication.UnicodeUTF8))
         self.menuHelp.setTitle(QtGui.QApplication.translate("MainWindow", "&Help", None, QtGui.QApplication.UnicodeUTF8))

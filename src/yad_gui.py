@@ -9,7 +9,7 @@ from gui import main_gui, about_gui, new_download_gui
 import yad
 import sys
 from hashlib import sha1
-from time import time
+from time import time,sleep
 from threading import Thread
 
 Downloads = [] # stores all the download objects for reference
@@ -22,12 +22,12 @@ class DownloadThread(Thread):
     def __init__(self,url,folder=None,threads=4):
         Thread.__init__(self) # setup the thread
         id = sha1(str(time())).hexdigest() # generate a hex digest based on current time
-        self.d = yad.Download(id,threads)
+        self.dl = yad.Download(id,threads)
         self.folder = folder
         self.url = url
 
     def run(self):
-        self.d.download(self.url,folder = self.folder)
+        self.dl.download(self.url,folder = self.folder)
         
 
 class AboutDialog(about_gui.Ui_Dialog):
@@ -84,6 +84,31 @@ class NewDownload(new_download_gui.Ui_Dialog):
             d.start()
             self.close()
 
+class YadInfo(Thread):
+    '''
+        class to update info of all the DownloadThreads to GUI
+    '''
+    def __init__(self,UI):
+        Thread.__init__(self) # call Threads init
+        self.UI = UI # YadUi's reference
+        self.running = True # to stop the thread
+
+    def run(self):
+        global Downloads
+        while self.running:
+            sleep(2)
+            for d in Downloads:
+                item = QtGui.QTreeWidgetItem()
+                item.setText(0,str(d.url))
+                item.setText(1,str(d.dl.info.progress))
+                item.setText(2,str(d.dl.info.ET))
+                item.setText(3,str(d.dl.info.cur_speed))
+                item.setText(4,str(d.dl.info.avg_speed))
+                item.setText(5,str(d.folder))
+                item.setText(6,str(d.dl.info.length))
+                self.UI.downloadWidget.addTopLevelItem(item)
+
+
 class YadUi(main_gui.Ui_MainWindow):
     '''
         class to handel all GUI actions
@@ -107,17 +132,8 @@ class YadUi(main_gui.Ui_MainWindow):
         window.connect(self.actionAbout,QtCore.SIGNAL("triggered()"),self.aboutDialog.show) # for about YAD
         window.connect(self.actionURL,QtCore.SIGNAL("triggered()"),self.downloadDialog.display) # for new download
 
-        ## remove this CHECK
-        item = QtGui.QTreeWidgetItem()
-        item.setText(0,"item 1")
-        item.setText(1,"skjskld")
-
-        item1 = QtGui.QTreeWidgetItem()
-        item1.setText(0,"item 2")
-        item1.setText(1,"skjskld")
-        self.downloadWidget.addTopLevelItem(item)
-        self.downloadWidget.addTopLevelItem(item1)
-
+        y = YadInfo(self)
+        y.start()
 
     def app_exit(self):
         '''
