@@ -13,19 +13,18 @@ from threading import Thread,Semaphore
 '''
 TODO
 Always pause and resume the downloads -- DONE (CHECK all cases)
+proxy support
+user options
+remove part file by adding single file seek
 '''
 
 class Download:
-    def __init__(self,id,threads=4,proxy=None):
-        '''
-        constructor
-        id -> helps keep track of all the downloads
-        '''
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.1) Gecko/2008070208 Firefox/3.0.1',
-            'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
-            'Accept': 'text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5',
-            'Accept-Language': 'en-us,en;q=0.5',
+    def __init__(self,threads=4,proxy=None):
+        self.headers = {	
+    	    'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.1) Gecko/2008070208 Firefox/3.0.1',
+    	    'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
+        	'Accept': 'text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5',
+	        'Accept-Language': 'en-us,en;q=0.5',
         } # connection headers 
         if proxy:
             urllib2.install_opener(urllib2.build_opener(urllib2.ProxyHandler(proxy))) # set global proxy handler
@@ -41,8 +40,6 @@ class Download:
         self.file_length=0 # total length of file
         self.part_length=0 # length of each part file
         self.datastore = DataStore(self) # CHECK remove this
-        self.ID = id # unique id for the thread
-        self.info = DownloadInfo(self) # DownloadInfo obj for displaying status info about current download
 
     def getInfo(self,url):
         request = urllib2.Request(url,None,self.headers) # create the request object
@@ -94,12 +91,14 @@ class Download:
             size = int(length)/self.threads # get size of each part
             if int(size) <1024: # check minimum size
                 print "Error: size of each part file is smaller then 1 KiB\nPlease decrease the number of threads"
+                print usage
                 sys.exit(1)
             self.datastore.filename=filename # set the file name
             self.datastore.start() # start the datastore thread
             self.part_length = size # set the size of part file
             self.createThreads(url,filename,size) # create thread objects
-            self.info.start() # start the status display thread
+            info = DownloadInfo(self) # DownloadInfo obj for displaying status info about current download
+            info.start() # start the status display thread
             print "Started %d thread(s)" %(self.threads,)
             for i in xrange(0,self.threads):
                 self.semaphore.acquire() # acquire semaphores self.threads times to make sure all threads are done downloading
@@ -132,6 +131,8 @@ class DownloadThread(Thread):
             print "Thread %d bytes=%d-%d" %(self.thread_num,self.start_byte,self.end_byte)
         request = urllib2.Request(self.url,None,self.options.headers) # making the request
         data = urllib2.urlopen(request)
+        self.options.download_done[self.thread_num] = 0 # self.options.part_length - (self.end_byte - self.start_byte) CHECK
+        # set the data downloaded by this thread to filesize (above) CHECK TODO
         while self.options.working: # if download is not cancled
             before=time.time() # time when we started to download the current block
             data_block = data.read(self.options.block_size) # download the data of size block_size
@@ -146,13 +147,10 @@ class DownloadThread(Thread):
             if self.options.debug:
                 print u'\rThread-%d speed -> %d' %(self.thread_num+1,speed), # print speed of thread if debug enabled
         print "Thread-%d Done" %(self.thread_num+1,) # announce the finishing of this thread
+        self.options.semaphore.release() # release the semaphore
         if self.options.debug:
             print "Semaphore released by Thread-%d" %(self.thread_num+1,)
-        if (self.options.download_done[self.thread_num] * self.options.block_size) >= self.options.part_length : # check if we downloaded the whole part
-            self.options.semaphore.release() # release the semaphore
-            return 0
-        else:
-            return 1
+        return 0
    
     def run(self):
         num =1
@@ -193,19 +191,13 @@ class DataStore(Thread):
         print time.time() - time_start
 
 class DownloadInfo(Thread):
-    def __init__(self,download_obj,interval=1):
+    def __init__(self,download_obj,interval=2):
         Thread.__init__(self) # call Thread's __init__ method
         self.download_obj = download_obj # Download class object to read info from
         self.interval=interval # number of seconds to sleep after each update
-        self.cur_speed = 0
-        self.avg_speed = 0
-        self.ET = 0
-        self.progress = 0
-        self.length = self.download_obj.file_length
-        self.finished = False
 
     def formatTime(self,seconds):
-        ' convert time from seconds to string of hr, min and sec '
+        ' convert time from seconds to string of hr, min and sec'
         seconds = int(seconds)
         if seconds <60:
             return "%2d sec" %(seconds,)
@@ -231,7 +223,7 @@ class DownloadInfo(Thread):
         while self.download_obj.working: # check if everything still working
             downloaded_bytes=0 # reset number of bytes downloaded during last sleep
             for i in self.download_obj.download_done.keys():
-                try: # we will get error on access of download info of a already done file ( if resume)
+                try: # we will get erron on access of download info of a already done file ( if resume)
                     downloaded_bytes += self.download_obj.download_done[i] # get total blocks from all threads
                 except: # on error do nothing just continue
                     pass
@@ -245,19 +237,54 @@ class DownloadInfo(Thread):
                 estimated_time = 0 # to prevent divide by zero when avg_speed is zero
             et = self.formatTime(estimated_time) # get the string representation
             print "\rcur-> %s KiB/sec, avg -> %s KiB/sec [%d%%] ET %s" %(cur_speed,int(avg_speed),percent,et),
-            self.cur_speed = str(cur_speed) + " Kib/sec"
-            self.avg_speed = str(int(avg_speed)) + " Kib/sec"
-            self.progress = str(percent) + "%"
-            self.ET = et
             sys.stdout.flush() # to flush stdout
             prev_downloaded_bytes=downloaded_bytes # set current downloaded bytes as previous for next cycle
             time.sleep(self.interval) # sleep for self.interval seconds
         cur_time= time.time() - start_time
         avg_speed=downloaded_bytes/cur_time
         print "Download finished in %s  with avg speed of %d KiB/sec" %(self.formatTime(int(cur_time)),int(avg_speed))
-        self.cur_speed = str(cur_speed) + " Kib/sec"
-        self.avg_speed = str(avg_speed) + " Kib/sec"
-        self.progress = "100%"
-        self.ET = "0 sec"
-        self.finished = True
 
+def main(url,filename,threads,proxy_arg):    
+    try:
+        threads = int(threads)
+    except:
+        print "Thread should be an integer"
+        print usage
+        sys.exit(2)
+    proxy = None # set proxy to None
+    if proxy_arg: # if proxy is set
+        proxy_arg = proxy_arg.split("://") # split protocol and proxy
+        if len(proxy_arg)>1: # check number
+            proxy={proxy_arg[0] : proxy_arg[1]} # set the proxy
+    d = Download(threads,proxy) # creates the download object
+    print "Downloading "+filename+" from "+url
+    d.download(url,filename) # download the file
+
+usage = """usage :-\n\t./yad.py [-f <filename>] [-t <number of threads>] [-p <proxy>] [-pn] <url to download>\n\t-pn -> set proxy to be ntlmapps that is 127.0.0.1:5865"""
+
+if __name__=="__main__":
+    filename=None # initialize filename
+    threads=4 # initialize number of threads
+    proxy = None # initialize proxy to None
+    try:
+        opts, args = getopt.getopt(sys.argv[1:],"f:t:p:pn") # parse the supplied arguments
+    except getopt.GetoptError, err: # catch the exception
+        print str(err) # print the error message
+        print usage # print usage
+        sys.exit(2)
+    for option, value in opts: # parse and set value of options
+        if option =="-f":
+            filename= value # set the filename
+        elif option =="-t":
+            threads= value # set number of threads
+        elif option == "-p":
+            proxy = value # set proxy
+        elif option == "-pn": 
+            proxy = "http://127.0.0.1:5865" # set proxy for ntlmapps
+    if len(args) ==0: # if no url specified
+        print "Please enter a url"
+        print usage
+    else:
+        if not filename: # if no filename set
+            filename = args[0].split("/")[-1].split('?')[0] # generate the file name from url
+        main(args[0],filename,threads,proxy) # call the main function
