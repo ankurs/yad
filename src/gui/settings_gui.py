@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'settings.ui'
 #
-# Created: Sun Oct 18 15:37:44 2009
+# Created: Sun Nov  1 11:18:53 2009
 #      by: PyQt4 UI code generator 4.5.4
 #
 # WARNING! All changes made in this file will be lost!
@@ -12,9 +12,12 @@ from PyQt4 import QtCore, QtGui
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
-        Dialog.resize(326, 434)
+        Dialog.resize(335, 316)
         self.verticalLayout = QtGui.QVBoxLayout(Dialog)
         self.verticalLayout.setObjectName("verticalLayout")
+        self.proxyBox = QtGui.QCheckBox(Dialog)
+        self.proxyBox.setObjectName("proxyBox")
+        self.verticalLayout.addWidget(self.proxyBox)
         self.horizontalLayout_3 = QtGui.QHBoxLayout()
         self.horizontalLayout_3.setObjectName("horizontalLayout_3")
         self.label = QtGui.QLabel(Dialog)
@@ -24,6 +27,11 @@ class Ui_Dialog(object):
         self.url.setDragEnabled(True)
         self.url.setObjectName("url")
         self.horizontalLayout_3.addWidget(self.url)
+        self.spinBox = QtGui.QSpinBox(Dialog)
+        self.spinBox.setMaximum(65565)
+        self.spinBox.setProperty("value", QtCore.QVariant(5865))
+        self.spinBox.setObjectName("spinBox")
+        self.horizontalLayout_3.addWidget(self.spinBox)
         self.verticalLayout.addLayout(self.horizontalLayout_3)
         self.horizontalLayout_2 = QtGui.QHBoxLayout()
         self.horizontalLayout_2.setObjectName("horizontalLayout_2")
@@ -62,8 +70,9 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         Dialog.setWindowTitle(QtGui.QApplication.translate("Dialog", "YAD - Settings", None, QtGui.QApplication.UnicodeUTF8))
+        self.proxyBox.setText(QtGui.QApplication.translate("Dialog", "Enable HTTP Proxy", None, QtGui.QApplication.UnicodeUTF8))
         self.label.setText(QtGui.QApplication.translate("Dialog", "Proxy", None, QtGui.QApplication.UnicodeUTF8))
-        self.url.setText(QtGui.QApplication.translate("Dialog", "http://", None, QtGui.QApplication.UnicodeUTF8))
+        self.url.setText(QtGui.QApplication.translate("Dialog", "127.0.0.1", None, QtGui.QApplication.UnicodeUTF8))
         self.label_3.setText(QtGui.QApplication.translate("Dialog", "Save to", None, QtGui.QApplication.UnicodeUTF8))
         self.selectButton.setText(QtGui.QApplication.translate("Dialog", "Select", None, QtGui.QApplication.UnicodeUTF8))
         self.label_2.setText(QtGui.QApplication.translate("Dialog", "Number Of Threads", None, QtGui.QApplication.UnicodeUTF8))

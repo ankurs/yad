@@ -13,9 +13,6 @@ from threading import Thread,Semaphore
 '''
 TODO
 Always pause and resume the downloads -- DONE (CHECK all cases)
-proxy support
-user options
-remove part file by adding single file seek -- DONE
 '''
 
 class Download:
@@ -24,11 +21,11 @@ class Download:
         constructor
         id -> helps keep track of all the downloads
         '''
-        self.headers = {	
-    	    'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.1) Gecko/2008070208 Firefox/3.0.1',
-    	    'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
-        	'Accept': 'text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5',
-	        'Accept-Language': 'en-us,en;q=0.5',
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.1) Gecko/2008070208 Firefox/3.0.1',
+            'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
+            'Accept': 'text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5',
+            'Accept-Language': 'en-us,en;q=0.5',
         } # connection headers 
         if proxy:
             urllib2.install_opener(urllib2.build_opener(urllib2.ProxyHandler(proxy))) # set global proxy handler
@@ -135,8 +132,6 @@ class DownloadThread(Thread):
             print "Thread %d bytes=%d-%d" %(self.thread_num,self.start_byte,self.end_byte)
         request = urllib2.Request(self.url,None,self.options.headers) # making the request
         data = urllib2.urlopen(request)
-        self.options.download_done[self.thread_num] = 0 # self.options.part_length - (self.end_byte - self.start_byte) CHECK
-        # set the data downloaded by this thread to filesize (above) CHECK TODO
         while self.options.working: # if download is not cancled
             before=time.time() # time when we started to download the current block
             data_block = data.read(self.options.block_size) # download the data of size block_size
@@ -151,10 +146,13 @@ class DownloadThread(Thread):
             if self.options.debug:
                 print u'\rThread-%d speed -> %d' %(self.thread_num+1,speed), # print speed of thread if debug enabled
         print "Thread-%d Done" %(self.thread_num+1,) # announce the finishing of this thread
-        self.options.semaphore.release() # release the semaphore
         if self.options.debug:
             print "Semaphore released by Thread-%d" %(self.thread_num+1,)
-        return 0
+        if (self.options.download_done[self.thread_num] * self.options.block_size) >= self.options.part_length : # check if we downloaded the whole part
+            self.options.semaphore.release() # release the semaphore
+            return 0
+        else:
+            return 1
    
     def run(self):
         num =1
@@ -195,7 +193,7 @@ class DataStore(Thread):
         print time.time() - time_start
 
 class DownloadInfo(Thread):
-    def __init__(self,download_obj,interval=2):
+    def __init__(self,download_obj,interval=1):
         Thread.__init__(self) # call Thread's __init__ method
         self.download_obj = download_obj # Download class object to read info from
         self.interval=interval # number of seconds to sleep after each update
@@ -233,7 +231,7 @@ class DownloadInfo(Thread):
         while self.download_obj.working: # check if everything still working
             downloaded_bytes=0 # reset number of bytes downloaded during last sleep
             for i in self.download_obj.download_done.keys():
-                try: # we will get erron on access of download info of a already done file ( if resume)
+                try: # we will get error on access of download info of a already done file ( if resume)
                     downloaded_bytes += self.download_obj.download_done[i] # get total blocks from all threads
                 except: # on error do nothing just continue
                     pass
@@ -248,7 +246,7 @@ class DownloadInfo(Thread):
             et = self.formatTime(estimated_time) # get the string representation
             print "\rcur-> %s KiB/sec, avg -> %s KiB/sec [%d%%] ET %s" %(cur_speed,int(avg_speed),percent,et),
             self.cur_speed = str(cur_speed) + " Kib/sec"
-            self.avg_speed = str(avg_speed) + " Kib/sec"
+            self.avg_speed = str(int(avg_speed)) + " Kib/sec"
             self.progress = str(percent) + "%"
             self.ET = et
             sys.stdout.flush() # to flush stdout

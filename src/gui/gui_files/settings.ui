@@ -6,14 +6,21 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>326</width>
-    <height>434</height>
+    <width>335</width>
+    <height>316</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>YAD - Settings</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QCheckBox" name="proxyBox">
+     <property name="text">
+      <string>Enable HTTP Proxy</string>
+     </property>
+    </widget>
+   </item>
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout_3">
      <item>
@@ -26,10 +33,20 @@
      <item>
       <widget class="QLineEdit" name="url">
        <property name="text">
-        <string>http://</string>
+        <string>127.0.0.1</string>
        </property>
        <property name="dragEnabled">
         <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QSpinBox" name="spinBox">
+       <property name="maximum">
+        <number>65565</number>
+       </property>
+       <property name="value">
+        <number>5865</number>
        </property>
       </widget>
      </item>
